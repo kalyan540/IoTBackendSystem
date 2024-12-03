@@ -1,0 +1,125 @@
+version: '3.8'
+services:
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto_broker
+    ports:
+      - "1884:1884"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+
+  mongodb:
+    image: mongo
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongo/data:/data/db
+  
+  redis:
+    image: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - MQTT_BROKER=mosquitto
+
+  usermanagement:
+    build:
+      context: ./usermanagement
+      dockerfile: Dockerfile
+    container_name: usermanagement
+    ports:
+      - "5001:5001"
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+
+  devicemanagement:
+    build:
+      context: ./devicemanagement
+      dockerfile: Dockerfile
+    container_name: devicemanagement
+    ports:
+      - "5002:5002"
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+
+  devicemonitoring_worker:
+    build:
+      context: ./devicemonitoring
+      dockerfile: Dockerfile
+    container_name: devicemonitoring_worker
+    depends_on:
+      - redis
+      - mongodb
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - CELERY_BROKER=redis://redis:6379/0
+    command: bash -c "celery -A healthcheck worker --loglevel=info"  # Running Celery worker
+    volumes:
+      - ./devicemonitoring:/app
+  
+  celery_beat:
+    build:
+      context: ./devicemonitoring
+      dockerfile: Dockerfile
+    container_name: celery_beat
+    depends_on:
+      - redis
+      - mongodb
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - CELERY_BROKER=redis://redis:6379/0
+    command: bash -c "celery -A healthcheck beat --loglevel=info"  # Running Celery Beat
+    volumes:
+      - ./devicemonitoring:/app
+  
+  mqtt_handler:
+    build:
+      context: ./devicemonitoring
+      dockerfile: Dockerfile
+    container_name: mqtt_handler
+    depends_on:
+      - mosquitto
+      - mongodb
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - MQTT_BROKER=mosquitto
+    command: bash -c "python mqtthandler.py"
+    volumes:
+      - ./devicemonitoring:/app
+  
+  data_collector:
+    build:
+      context: ./dataacquisition
+      dockerfile: Dockerfile
+    container_name: docker_collector
+    depends_on:
+      - mosquitto
+      - mongodb
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - MQTT_BROKER=mosquitto
+    command: bash -c "python main.py"
+    volumes:
+      - ./dataacquisition:/app 
+  
+  data_provider:
+    build:
+      context: ./dataprovider
+      dockerfile: Dockerfile
+    container_name: data_provider
+    ports:
+      - "5003:5003"
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+

@@ -1,0 +1,9 @@
+fastapi
+pydantic
+pymongo
+paho-mqtt
+celery
+redis
+uvicorn
+python-dotenv
+gmqtt
