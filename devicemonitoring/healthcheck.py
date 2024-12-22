@@ -3,7 +3,7 @@ import os
 import logging
 from celery import Celery
 from celery.schedules import crontab
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Set up logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,7 +32,7 @@ devices_collection = db["devices"]
 def check_device_health():
     # Get the current time
     logger.info("Checking device health...")
-    current_time = datetime.utcnow()
+    current_time = datetime.now(timezone.utc)
 
     # Find devices that are connected
     devices = list(devices_collection.find({'status': 'connected'}))
@@ -46,7 +46,6 @@ def check_device_health():
     for device in devices:
         health_timestamp = device.get('health_timestamp')
         if health_timestamp:
-            health_timestamp = datetime.strptime(health_timestamp, '%Y-%m-%dT%H:%M:%S')
 
             # Mark as disconnected if health timestamp is older than 30 seconds
             if current_time - health_timestamp > timedelta(seconds=30):
