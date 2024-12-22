@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 from pymongo import MongoClient
 from jose import JWTError, jwt
 from typing import List
