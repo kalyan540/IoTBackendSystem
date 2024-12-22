@@ -46,7 +46,8 @@ def check_device_health():
     for device in devices:
         health_timestamp = device.get('health_timestamp')
         if health_timestamp:
-
+            if health_timestamp.tzinfo is None:
+                health_timestamp = health_timestamp.replace(tzinfo=timezone.utc)
             # Mark as disconnected if health timestamp is older than 30 seconds
             if current_time - health_timestamp > timedelta(seconds=30):
                 devices_collection.update_one(
