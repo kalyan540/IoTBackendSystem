@@ -47,14 +47,20 @@ def create_device(user_id: str, device_id: str, device_name: str, device_type: s
     # Ensure device ID is unique
     if get_device(device_id):
         raise HTTPException(status_code=400, detail="Device ID already exists")
-
+    current_time = datetime.now(timezone.utc)
     device = {
         "device_id": device_id,
         "user_id": user_id,
         "device_name": device_name,
         "device_type": device_type,
         "status": status,
-        "created_at": datetime.utcnow()
+        "created_at": current_time,
+        "health_timestamp": current_time,
+        "value1": 0,
+        "value2": 0,
+        "value3": 0,
+        "battery_percentage": 100,
+        "data_timestamp": current_time,
     }
     devices_collection.insert_one(device)
     return device
