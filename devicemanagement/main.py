@@ -5,6 +5,7 @@ from pymongo import MongoClient
 from jose import JWTError, jwt
 from typing import List
 import uuid
+from cryptography.fernet import Fernet
 
 # MongoDB setup
 client = MongoClient("mongodb://mongodb:27017")
@@ -18,12 +19,16 @@ app = FastAPI()
 SECRET_KEY = "your_secret_key_here"
 ALGORITHM = "HS256"
 
+#Device Security configurations
+ENCRYPTION_KEY = b'_T3L0eU8ovtJSZCMf7GxkXh1GP1ebNuLlHLcfM8vu4Q='
+cipher = Fernet(ENCRYPTION_KEY)
+
 # Models
 class Device(BaseModel):
     device_id: str  # device_id passed from the device memory
-    device_name: str
-    device_type: str
-    status: str
+    #device_name: str
+    #device_type: str
+    #status: str
 
 class DeviceResponse(BaseModel):
     device_id: str
@@ -43,17 +48,42 @@ def get_device(device_id: str):
 def get_devices_by_user(user_id: str):
     return list(devices_collection.find({"user_id": user_id}))
 
-def create_device(user_id: str, device_id: str, device_name: str, device_type: str, status: str):
+def decode_device_info(encoded_data: str) -> dict:
+    """
+    Decode the encoded string to retrieve the original device information.
+
+    Parameters:
+    - encoded_data (str): The encoded string to decode
+
+    Returns:
+    - dict: Contains the original manufacturer name, device type, secret key, and timestamp
+    """
+    try:
+        # Decrypt the data
+        decoded_data = cipher.decrypt(encoded_data.encode('utf-8')).decode('utf-8')
+        # Split the data into components
+        manufacturer_name, device_Name, device_type, timestamp = decoded_data.split(":")
+        return {
+            "manufacturer_name": manufacturer_name,
+            "device_name": device_Name,
+            "device_type": device_type,
+            "timestamp": timestamp
+        }
+    except Exception as e:
+        raise ValueError("Invalid encoded data or decryption failed.") from e
+
+def create_device(user_id: str, device_id: str):
     # Ensure device ID is unique
     if get_device(device_id):
         raise HTTPException(status_code=400, detail="Device ID already exists")
     current_time = datetime.now(timezone.utc)
+    decoded_info = decode_device_info(device_id)
     device = {
         "device_id": device_id,
         "user_id": user_id,
-        "device_name": device_name,
-        "device_type": device_type,
-        "status": status,
+        "device_name": decoded_info["device_name"],
+        "device_type": decoded_info["device_type"],
+        "status": "connected",
         "created_at": current_time,
         "health_timestamp": current_time,
         "value1": 0,
@@ -89,9 +119,7 @@ async def add_device(device: Device, authorization: str = Header(...)):
         raise HTTPException(status_code=400, detail="Device ID already exists")
 
     # Assign device to user
-    device_data = create_device(user_id=payload["user_id"], device_id=device.device_id,
-                                device_name=device.device_name, device_type=device.device_type, 
-                                status=device.status)
+    device_data = create_device(user_id=payload["user_id"], device_id=device.device_id)
     return device_data
 
 @app.get("/devices", response_model=List[DeviceResponse])
