@@ -122,4 +122,17 @@ services:
       - "5003:5003"
     environment:
       - MONGO_URL=mongodb://mongodb:27017
+  
+  ota_file_hosting:
+    build:
+      context: ./otafilehosting
+      dockerfile: Dockerfile
+    container_name: otafilehosting
+    depends_on:
+      - backend
+    volumes:
+      - ./otafilehosting/OTA:/app/OTA  # OTA files
+    ports:
+      - "5004:5004"
+
 
