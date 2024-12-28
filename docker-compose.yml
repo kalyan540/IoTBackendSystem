@@ -134,5 +134,7 @@ services:
       - ./otafilehosting/OTA:/app/OTA  # OTA files
     ports:
       - "5004:5004"
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
 
 

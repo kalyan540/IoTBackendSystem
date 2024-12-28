@@ -2,6 +2,7 @@ fastapi
 uvicorn
 pymongo
 email-validator
+pymongo
 python-jose
 passlib==1.7.4
 bcrypt==3.2.2

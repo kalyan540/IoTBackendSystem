@@ -5,4 +5,4 @@ email-validator
 python-jose
 passlib==1.7.4
 bcrypt==3.2.2
-cryptography==42.0.8
+cryptography

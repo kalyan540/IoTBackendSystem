@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask import send_from_directory
 from jose import jwt, JWTError
 from cryptography.fernet import Fernet
+from pymongo import MongoClient
 import os
 import datetime
 
@@ -16,6 +17,20 @@ cipher = Fernet(FERNET_KEY)
 
 OTA_DIR = "/app/OTA"  # Path to the OTA directory
 BASE_URL = "https://ota.eknow.in"  # Base URL for OTA file hosting
+
+
+# MongoDB setup
+client = MongoClient("mongodb://mongodb:27017")
+db = client["mydatabase"]
+devices_collection = db["devices"]  # This should be connected to your actual MongoDB collection
+
+
+def get_user(user_id: str):
+    """
+    Retrieve user data from the database.
+    Replace with your actual database query logic.
+    """
+    return devices_collection.get(user_id)
 
 
 def decode_jwt_token(token: str):
@@ -122,9 +137,15 @@ def get_ota_files():
         token = token.split(" ")[1]
 
         try:
-            decode_jwt_token(token)
+            payload = decode_jwt_token(token)
         except ValueError as e:
             return jsonify({"error": str(e)}), 401
+
+        # Check if the user exists
+        user_id = payload.get("user_id")
+        user = get_user(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
         # Decode the encrypted device ID
         data = request.json
