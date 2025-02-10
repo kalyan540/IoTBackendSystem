@@ -5,12 +5,13 @@ from cryptography.fernet import Fernet
 from pymongo import MongoClient
 import os
 import datetime
+import logging
 
 # Flask app setup
 app = Flask(__name__)
 
 # Hardcoded secrets
-SECRET_KEY = "your_jwt_secret_key"  # Replace with your secure JWT secret
+SECRET_KEY = "your_secret_key_here"  # Replace with your secure JWT secret
 ALGORITHM = "HS256"  # Algorithm for JWT decoding
 FERNET_KEY = b'_T3L0eU8ovtJSZCMf7GxkXh1GP1ebNuLlHLcfM8vu4Q='  # Replace with your Fernet encryption key
 cipher = Fernet(FERNET_KEY)
@@ -22,7 +23,7 @@ BASE_URL = "https://ota.eknow.in"  # Base URL for OTA file hosting
 # MongoDB setup
 client = MongoClient("mongodb://mongodb:27017")
 db = client["mydatabase"]
-devices_collection = db["devices"]  # This should be connected to your actual MongoDB collection
+users_collection = db["users"]
 
 
 def get_user(user_id: str):
@@ -30,7 +31,7 @@ def get_user(user_id: str):
     Retrieve user data from the database.
     Replace with your actual database query logic.
     """
-    return devices_collection.get(user_id)
+    return users_collection.find_one({"user_id": user_id})
 
 
 def decode_jwt_token(token: str):
@@ -73,11 +74,12 @@ def decode_device_info(encoded_data: str) -> dict:
         raise ValueError("Invalid encoded data or decryption failed.") from e
 
 
-def generate_signed_url(filename: str, expiry_minutes: int = 10) -> str:
+def generate_signed_url(device_name: str, filename: str, expiry_minutes: int = 10) -> str:
     """
     Generate a signed URL for secure file access.
 
     Parameters:
+    - device_name (str): The name of the device
     - filename (str): The name of the file
     - expiry_minutes (int): Expiry time in minutes
 
@@ -87,6 +89,7 @@ def generate_signed_url(filename: str, expiry_minutes: int = 10) -> str:
     expiry_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=expiry_minutes)
     payload = {
         "file": filename,
+        "device": device_name,
         "exp": expiry_time
     }
     signed_token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
@@ -106,20 +109,42 @@ def serve_file(token, filename):
     - File: The requested file if the token is valid
     """
     try:
+        # Validate and decode JWT token
+        token1 = request.headers.get("Authorization")
+        if not token1 or not token1.startswith("Bearer "):
+            return jsonify({"error": "Authorization token is required"}), 401
+        token1 = token1.split(" ")[1]
+
+        try:
+            payload = decode_jwt_token(token1)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 401
+
+        # Check if the user exists
+        user_id = payload.get("user_id")
+        user = get_user(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
         # Decode and validate the token
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload1 = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
         # Check if the filename in the token matches the requested file
-        if payload.get("file") != filename:
+        if payload1.get("file") != filename:
             return jsonify({"error": "Invalid token or file mismatch"}), 403
 
-        # Check if the file exists in the OTA directory
-        file_path = os.path.join(OTA_DIR, filename)
+        # Extract device name from the token
+        device_name = payload1.get("device")
+        if not device_name:
+            return jsonify({"error": "Device name missing in the token"}), 400
+
+        # Build the file path using device name
+        file_path = os.path.join(OTA_DIR, device_name, filename)
         if not os.path.exists(file_path):
+            logging.error(f"File not found at {file_path}")
             return jsonify({"error": "File not found"}), 404
 
         # Serve the file
-        return send_from_directory(OTA_DIR, filename, as_attachment=True)
+        return send_from_directory(os.path.join(OTA_DIR, device_name), filename, as_attachment=True)
 
     except JWTError as e:
         return jsonify({"error": "Invalid or expired token"}), 401
@@ -166,7 +191,7 @@ def get_ota_files():
 
         # Get files in the folder
         files = os.listdir(folder_path)
-        file_links = [generate_signed_url(file) for file in files]
+        file_links = [generate_signed_url(device_name, file) for file in files]
 
         return jsonify({"device": device_name, "ota_files": file_links})
 

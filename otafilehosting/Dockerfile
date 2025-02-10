@@ -17,5 +17,4 @@ RUN mkdir -p /app/OTA
 EXPOSE 5004
 
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5001"]
-
+CMD ["python", "main.py"]

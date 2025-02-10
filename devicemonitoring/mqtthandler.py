@@ -2,6 +2,7 @@ import paho.mqtt.client as mqtt
 import pymongo
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 # Setup logging
 logging.basicConfig(
@@ -37,7 +38,8 @@ def on_message(client, userdata, msg):
         data = json.loads(msg.payload.decode())
         device_id = data.get('device_id')
         status = data.get('status')
-        health_timestamp = data.get('health_timestamp')
+        #health_timestamp = data.get('health_timestamp')
+        health_timestamp = datetime.now(timezone.utc)
         battery_percentage = data.get('battery_percentage')
 
         if not device_id:
